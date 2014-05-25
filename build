@@ -62,6 +62,7 @@ SVNROOT             = "texworks-read-only"
 PKGROOT             = "pkg"
 BUILDROOT           = "builds"
 SCRIPTSROOT         = "src"
+LOGROOT             = "logs"
 
 LOG                 = sys.stdout
 
@@ -72,6 +73,9 @@ def getStableVersions():
 		m = re.match('^release-([0-9.]+)$', d)
 		if m:
 			STABLE_VERSIONS.append(m.group(1))
+
+def svnCheckout():
+	subprocess.call(["svn", "checkout", "http://texworks.googlecode.com/svn/", SVNROOT])
 
 def svnUpdate():
 	subprocess.call(["svn", "update", SVNROOT])
@@ -107,11 +111,12 @@ def getRevNo():
 	
 def getPrerequisites():
 	if not os.path.isfile(PKGROOT + "/" + POPPLERDATAFILENAME):
-		print(colors.TASK + "Downloading '" + POPPLERDATAFILENAME + "'" + colors.END)
+		printTask("Downloading '" + POPPLERDATAFILENAME + "'", "")
 		urllib.urlretrieve(POPPLERDATAURL, PKGROOT + "/" + POPPLERDATAFILENAME)
+		print("OK")
 
-def printTask(description):
-	print ("   " + description + "... ", end = '')
+def printTask(description, indent = "   "):
+	print (indent + description + "... ", end = '')
 	sys.stdout.flush()
 
 def loadJson(filename):
@@ -124,6 +129,20 @@ def saveJson(filename, data):
 	fout = open(filename, 'w')
 	json.dump(data, fout)
 	fout.close()
+
+def ensureDirExists(folder):
+	if not os.path.exists(folder):
+		printTask("Creating " + folder + " folder", "")
+		os.mkdir(folder)
+		print(colors.OK + "OK" + colors.END)
+
+def ensureDirsExist():
+	if not os.path.exists(SVNROOT):
+		printTask("Checking out TeXworks sources ", "")
+		svnCheckout()
+		print(colors.OK + "OK" + colors.END)
+	ensureDirExists(LOGROOT)
+	ensureDirExists(PKGROOT)
 
 def buildWin32():
 	SCRIPTSDIR = SCRIPTSROOT + "/" + SERIES + "/win32"
@@ -208,7 +227,10 @@ def formatChangelog(DISTRO, BUILDDIR):
 
 	if SERIES == TRUNK_SERIES:
 		# For trunk releases, derive the changelog from the svn log
-		lastRevs = loadJson(BUILDROOT + "/ubuntu/lastRevs.json")
+		try:
+			lastRevs = loadJson(BUILDROOT + "/ubuntu/lastRevs.json")
+		except IOError:
+			lastRevs = []
 		if DISTRO in lastRevs: lastRev = lastRevs[DISTRO]
 		else: lastRev = None
 
@@ -247,7 +269,10 @@ def buildUbuntu():
 	SCRIPTSDIR = SCRIPTSROOT + "/" + SERIES + "/ubuntu"
 
 	print(colors.TASK + "Ubuntu builds" + colors.END)
-	lastRevs = loadJson(BUILDROOT + "/ubuntu/lastRevs.json")
+	try:
+		lastRevs = loadJson(BUILDROOT + "/ubuntu/lastRevs.json")
+	except IOError:
+		lastRevs = []
 
 	if SERIES == TRUNK_SERIES: PPA = "ppa:texworks/ppa"
 	else: PPA = "ppa:texworks/stable"
@@ -304,6 +329,7 @@ def buildUbuntu():
 
 
 if __name__ == "__main__":
+	ensureDirsExist()
 	if config.UPDATE_FIRST: svnUpdate()
 
 	getStableVersions()
@@ -311,7 +337,7 @@ if __name__ == "__main__":
 	getSrcDir()
 	getRevNo()
 	
-	LOG = open("logs/build-%s-r%i.log" % (SERIES, REVNO), 'w')
+	LOG = open(LOGROOT + "/build-%s-r%i.log" % (SERIES, REVNO), 'w')
 
 	getPrerequisites()
 

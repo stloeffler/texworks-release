@@ -1,0 +1,323 @@
+#!/usr/bin/python -B
+# -*- coding: utf-8 -*-
+
+# The -B flag should prevent the generation of .pyc
+
+from __future__ import print_function
+from sys import argv
+import sys
+import os
+import re
+import subprocess
+import urllib
+import shutil
+import json
+import email.Utils
+
+class colors:
+	BOLD = '\033[01m'
+	WARN = '\033[33m'
+	ERROR = BOLD + '\033[31m'
+	OK = BOLD + '\033[32m'
+	TASK = BOLD + '\033[35m'
+	END = '\033[0m'
+
+try:
+	import build_config as config
+except ImportError:
+	print(colors.ERROR + "Error: Could not load build_config.py" + colors.END)
+	print("Creating build_config.py template")
+	print(colors.WARN + "Make sure you set the appropriate values!" + colors.END)
+	fout = open("build_config.py", "w")
+	fout.write("# -*- coding: utf-8 -*-\n\n")
+	fout.write('PACKAGER             = "" # Your Name <your.email@domain.com>\n')
+	fout.write('MXE_DIR              = "" # /opt/mxe-stable\n')
+	fout.write('GOOGLE_CLIENT_ID     = "" # Your Google Drive client ID\n')
+	fout.write('GOOGLE_CLIENT_SECRET = "" # Your Google Drive client secret\n')
+	fout.write('UPDATE_FIRST         = True # Run `svn up` before starting building?\n')
+	fout.write('OVERWRITE            = True # Overwrite build directories if they already exist?\n')
+	fout.write('FORCE                = True # Build even if the build target already exists?\n')
+	fout.write('UPLOAD               = True # Upload files when the build has finished?\n')
+	fout.close()
+	sys.exit(1)
+
+BUILDNUM            = 1
+TRUNK_SERIES        = "0.5"
+
+PLATFORMS           = ["win32", "ubuntu"]
+#PLATFORMS           = ["ubuntu"]
+#PLATFORMS           = ["win32"]
+
+# FIXME
+#INNOCC             := wine "C:\\Programme\\Inno Setup 5\\iscc.exe" /O.
+
+POPPLERDATAVERSION  = "0.4.6"
+POPPLERDATAFILENAME = "poppler-data-%s.tar.gz" % POPPLERDATAVERSION
+POPPLERDATAURL      = "http://poppler.freedesktop.org/" + POPPLERDATAFILENAME
+
+UBUNTU_DISTROS      = ["precise", "saucy", "trusty", "utopic"]
+#UBUNTU_DISTROS      = ["saucy", "trusty"]
+#UBUNTU_DISTROS      = ["trusty"]
+SVNROOT             = "texworks-read-only"
+PKGROOT             = "pkg"
+BUILDROOT           = "builds"
+SCRIPTSROOT         = "src"
+
+LOG                 = sys.stdout
+
+def getStableVersions():
+	global STABLE_VERSIONS
+	STABLE_VERSIONS = []
+	for d in sorted(os.listdir(SVNROOT + '/tags')):
+		m = re.match('^release-([0-9.]+)$', d)
+		if m:
+			STABLE_VERSIONS.append(m.group(1))
+
+def svnUpdate():
+	subprocess.call(["svn", "update", SVNROOT])
+
+def svnExport(src, dest):
+	return subprocess.call(["svn", "export", src, dest], stdout = LOG)
+
+def getSeries():
+	global SERIES
+	SERIES = TRUNK_SERIES
+	if len(argv) == 2:
+		if argv[1] in STABLE_VERSIONS or argv[1] == TRUNK_SERIES: SERIES = argv[1]
+		else: print(colors.WARN + "Unknown series '" + argv[1] + "'; building trunk" + colors.END)
+
+def getSrcDir():
+	global SRCDIR
+	if SERIES in STABLE_VERSIONS: SRCDIR = SVNROOT + "/tags/release-" + SERIES
+	else: SRCDIR = SVNROOT + "/trunk"
+
+def getRevNo():
+	global REVNO
+
+	if SERIES in STABLE_VERSIONS:
+		fin = open(SRCDIR + "/src/SvnRev.h")
+		m = re.search('SVN_REVISION\s+(\d+)', fin.read())
+		fin.close()
+		if m:
+			REVNO = int(m.group(1))
+			return
+	m = re.search('Revision:\s+(\d+)', subprocess.check_output(['svn', 'info', SRCDIR]))
+	if m: REVNO = int(m.group(1))
+	else: REVNO = -1
+	
+def getPrerequisites():
+	if not os.path.isfile(PKGROOT + "/" + POPPLERDATAFILENAME):
+		print(colors.TASK + "Downloading '" + POPPLERDATAFILENAME + "'" + colors.END)
+		urllib.urlretrieve(POPPLERDATAURL, PKGROOT + "/" + POPPLERDATAFILENAME)
+
+def printTask(description):
+	print ("   " + description + "... ", end = '')
+	sys.stdout.flush()
+
+def loadJson(filename):
+	fin = open(filename)
+	retVal = json.load(fin)
+	fin.close()
+	return retVal
+
+def saveJson(filename, data):
+	fout = open(filename, 'w')
+	json.dump(data, fout)
+	fout.close()
+
+def buildWin32():
+	SCRIPTSDIR = SCRIPTSROOT + "/" + SERIES + "/win32"
+	BUILDDIR = BUILDROOT + "/win32/TeXworks-w32-%s-r%i" % (SERIES, REVNO)
+	ZIPTARGET = BUILDROOT + "/win32/TeXworks-w32-%s-r%i.zip" % (SERIES, REVNO)
+	PACKAGES = []
+	os.environ["MXE_DIR"] = config.MXE_DIR
+
+	print(colors.TASK + "Win32 build" + colors.END)
+
+	# FIXME: Other targets (installer, ...)
+	if not config.FORCE and os.path.isfile(ZIPTARGET):
+		print("   already up to date")
+		return
+
+	print("=================== Win32 Build ===================", file = LOG)
+	LOG.flush()
+
+	printTask("exporting sources")
+	if config.OVERWRITE and os.path.exists(BUILDDIR): shutil.rmtree(BUILDDIR)
+	if not os.path.exists(BUILDDIR):
+		if not os.path.exists(os.path.dirname(BUILDDIR)): os.makedirs(os.path.dirname(BUILDDIR))
+		if svnExport(SRCDIR, BUILDDIR) != 0:
+			print(colors.ERROR + "error" + colors.END)
+			return
+		else:
+			print(colors.OK + "OK" + colors.END)
+	else:
+		print("noop")
+
+	printTask("building")
+	if subprocess.call([SCRIPTSDIR + "/build.sh", BUILDDIR], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+		print(colors.ERROR + "error" + colors.END)
+		return
+	else:
+		print(colors.OK + "OK" + colors.END)
+
+	if SERIES != TRUNK_SERIES:
+		printTask("building manual")
+		if subprocess.call([SCRIPTSROOT + "/buildManual.sh", SVNROOT + "/manual"], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+			print(colors.ERROR + "error" + colors.END)
+		else:
+			print(colors.OK + "OK" + colors.END)
+			printTask("copying manual")
+			if subprocess.call([SCRIPTSROOT + "/copyManual.sh", SVNROOT + "/manual", BUILDDIR], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+				print(colors.ERROR + "error" + colors.END)
+			else:
+				print(colors.OK + "OK" + colors.END)
+
+
+	printTask("packaging (zip)")
+	if subprocess.call([SCRIPTSDIR + "/packageZip.sh", BUILDDIR, ZIPTARGET, POPPLERDATAFILENAME], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+		print(colors.ERROR + "error" + colors.END)
+		return
+	else:
+		PACKAGES.append(ZIPTARGET)
+		print(colors.OK + "OK" + colors.END)
+
+	if SERIES != TRUNK_SERIES:
+		printTask("packaging (installer)")
+		# FIXME
+		print(colors.ERROR + "!!!!!! FIXME !!!!!!" + colors.END)
+	
+	if config.UPLOAD:
+		printTask("uploading")
+		if len(PACKAGES) == 0:
+			print("noop")
+		elif subprocess.call([SCRIPTSROOT + "/googleDriveUpload.py", "win", "latest" if SERIES == TRUNK_SERIES else "stable"] + PACKAGES, stdout = LOG) != 0:
+			print(colors.ERROR + "error" + colors.END)
+			return
+		else:
+			print(colors.OK + "OK" + colors.END)
+
+
+def formatChangelog(DISTRO, BUILDDIR):
+	changelog = open(BUILDDIR + "/Changelog", 'w')
+
+	# Print Header
+	print("texworks (%s~svn%i~%s%i) %s; urgency=low" % (SERIES, REVNO, DISTRO, BUILDNUM, DISTRO), file = changelog)
+	print("", file = changelog)
+
+
+	if SERIES == TRUNK_SERIES:
+		# For trunk releases, derive the changelog from the svn log
+		lastRevs = loadJson(BUILDROOT + "/ubuntu/lastRevs.json")
+		if DISTRO in lastRevs: lastRev = lastRevs[DISTRO]
+		else: lastRev = None
+
+		if lastRev is None:
+			print("    * Initial release", file = changelog)
+		else:
+			fullLog = subprocess.check_output(['svn', 'log', SRCDIR, "-r", "%i:HEAD" % (lastRev + 1)])
+			logEntries = fullLog.split("------------------------------------------------------------------------")
+			for entry in logEntries:
+				lines = entry.split("\n")
+				if len(lines) < 4: continue
+				# line 0 is empty, line 1 is status info, line 2 is empty, line 3 is brief description
+				print("    * %s" % lines[3].strip(), file = changelog)
+	else:
+		# For stable releases, derive the changelog from the NEWS file
+		news = open(BUILDDIR + '/NEWS')
+		pipe = False
+		for line in news:
+			if line.startswith('Release %s' % SERIES):
+				pipe = True
+			elif line.startswith('Release'):
+				pipe = False
+			elif pipe:
+				if line.strip() == '': continue
+				else: print(line.strip('\n').replace('\t', '    '), file = changelog)
+		news.close()
+
+	# Print Footer
+	print("", file = changelog)
+	print(" -- %s  %s" % (config.PACKAGER, email.Utils.formatdate()), file = changelog)
+
+	changelog.close()
+	return 0
+
+def buildUbuntu():
+	SCRIPTSDIR = SCRIPTSROOT + "/" + SERIES + "/ubuntu"
+
+	print(colors.TASK + "Ubuntu builds" + colors.END)
+	lastRevs = loadJson(BUILDROOT + "/ubuntu/lastRevs.json")
+
+	if SERIES == TRUNK_SERIES: PPA = "ppa:texworks/ppa"
+	else: PPA = "ppa:texworks/stable"
+	
+	for DISTRO in UBUNTU_DISTROS:
+		BUILDDIR = BUILDROOT + "/ubuntu/%s/texworks-%s~svn%i~%s%i" % (DISTRO, SERIES, REVNO, DISTRO, BUILDNUM)
+		DEBTARGET = BUILDROOT + "/ubuntu/%s/texworks_%s~svn%i~%s%i_source.changes" % (DISTRO, SERIES, REVNO, DISTRO, BUILDNUM)
+		print(colors.TASK + "   " + DISTRO + " build" + colors.END)
+
+		if not config.FORCE and os.path.isfile(DEBTARGET):
+			print("      already up to date")
+			continue
+
+		printTask("   exporting sources")
+		if config.OVERWRITE and os.path.exists(BUILDDIR): shutil.rmtree(BUILDDIR)
+		if not os.path.exists(BUILDDIR):
+			if not os.path.exists(os.path.dirname(BUILDDIR)): os.makedirs(os.path.dirname(BUILDDIR))
+			if svnExport(SRCDIR, BUILDDIR) != 0:
+				print(colors.ERROR + "error" + colors.END)
+				return
+			else:
+				print(colors.OK + "OK" + colors.END)
+		else:
+			print("noop")
+
+		printTask("   formatting changelog")
+		if formatChangelog(DISTRO, BUILDDIR) != 0:
+			print(colors.ERROR + "error" + colors.END)
+			return
+		else:
+			print(colors.OK + "OK" + colors.END)
+
+		printTask("   packaging (deb)")
+
+		if subprocess.call([SCRIPTSDIR + "/packageDeb.sh", BUILDDIR, DISTRO, config.PACKAGER], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+			print(colors.ERROR + "error" + colors.END)
+			return
+		else:
+			print(colors.OK + "OK" + colors.END)
+
+		if config.UPLOAD:
+			printTask("   uploading (deb)")
+
+			if subprocess.call(["dput", PPA, DEBTARGET], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+				print(colors.ERROR + "error" + colors.END)
+				return
+			else:
+				print(colors.OK + "OK" + colors.END)
+	
+			if SERIES == TRUNK_SERIES:
+				lastRevs[DISTRO] = REVNO
+				saveJson(BUILDROOT + "/ubuntu/lastRevs.json", lastRevs)
+		
+
+
+if __name__ == "__main__":
+	if config.UPDATE_FIRST: svnUpdate()
+
+	getStableVersions()
+	getSeries()
+	getSrcDir()
+	getRevNo()
+	
+	LOG = open("logs/build-%s-r%i.log" % (SERIES, REVNO), 'w')
+
+	getPrerequisites()
+
+	# FIXME: Call function dynamically via globals()[function_name]()
+	if "ubuntu" in PLATFORMS: buildUbuntu()
+	if "win32" in PLATFORMS: buildWin32()
+
+	LOG.close()
+	#os.environ

@@ -1,0 +1,16 @@
+=== modified file 'plugins-src/TWPythonPlugin/TWPythonPlugin.pro'
+--- plugins-src/TWPythonPlugin/TWPythonPlugin.pro	2010-11-29 12:49:55 +0000
++++ plugins-src/TWPythonPlugin/TWPythonPlugin.pro	2011-03-19 13:44:03 +0000
+@@ -45,8 +45,8 @@
+ 
+ unix:!macx { # on Unix-ish platforms we should rely on pkgconfig
+ 	# Python prior to 3.x doesn't register properly with pkg-config
+-	INCLUDEPATH	+= /usr/include/python2.6/
+-	LIBS		+= -lpython2.6
++	INCLUDEPATH	+= /usr/include/python2.7/
++	LIBS		+= -lpython2.7
+ 
+ 	# uncomment these lines (and comment those above) to use Python 3
+ #	CONFIG		+= link_pkgconfig
+
+

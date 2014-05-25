@@ -1,0 +1,5 @@
+debian/tmp/usr/bin/*
+debian/tmp/usr/share/applications/*
+debian/tmp/usr/share/man/*
+debian/tmp/usr/share/pixmaps/*
+debian/tmp/usr/share/doc/texworks/*

@@ -1,0 +1,74 @@
+Index: src/CompletingEdit.cpp
+===================================================================
+--- src/CompletingEdit.cpp	(Revision 314)
++++ src/CompletingEdit.cpp	(Arbeitskopie)
+@@ -855,13 +855,9 @@
+ 					free(suggestionList);
+ 					connect(mapper, SIGNAL(mapped(const QString&)), this, SLOT(correction(const QString&)));
+ 				}
+-				sep = menu->insertSeparator(menu->actions().first());
+ //				QAction *add = new QAction(tr("Add to dictionary"), menu);
+ //				connect(add, SIGNAL(triggered()), this, SLOT(addToDictionary()));
+ //				menu->insertAction(sep, add);
+-				QAction *ignore = new QAction(tr("Ignore word"), menu);
+-				connect(ignore, SIGNAL(triggered()), this, SLOT(ignoreWord()));
+-				menu->insertAction(sep, ignore);
+ 			}
+ 		}
+ 	}
+@@ -892,14 +888,6 @@
+ 	// Prefer to switch to Enchant first, before looking into this further.
+ }
+ 
+-void CompletingEdit::ignoreWord()
+-{
+-	// note that this is not persistent after quitting TW
+-	QByteArray word = spellingCodec->fromUnicode(currentWord.selectedText());
+-	(void)Hunspell_add(pHunspell, word.data());
+-	emit rehighlight();
+-}
+-
+ void CompletingEdit::loadIndentModes()
+ {
+ 	if (indentModes == NULL) {
+Index: src/CompletingEdit.h
+===================================================================
+--- src/CompletingEdit.h	(Revision 314)
++++ src/CompletingEdit.h	(Arbeitskopie)
+@@ -82,7 +82,6 @@
+ 	void cursorPositionChangedSlot();
+ 	void correction(const QString& suggestion);
+ 	void addToDictionary();
+-	void ignoreWord();
+ 	void resetExtraSelections();
+ 	void jumpToPdf();
+ 	void updateLineNumberArea(const QRect&, int);
+Index: plugins-src/TWPythonPlugin/TWPythonPlugin.pro
+===================================================================
+--- plugins-src/TWPythonPlugin/TWPythonPlugin.pro	2010-01-02 18:54:43.000000000 +0100
++++ plugins-src/TWPythonPlugin/TWPythonPlugin.pro.hardy	2010-01-02 19:24:04.000000000 +0100
+@@ -46,8 +46,8 @@
+ 
+ unix:!macx { # on Unix-ish platforms we rely on pkgconfig
+ 	# Python prior to 3.x doesn't register properly with pkg-config
+-	INCLUDEPATH	+= /usr/include/python2.6/
+-	LIBS		+= -lpython2.6
++	INCLUDEPATH	+= /usr/include/python2.5/
++	LIBS		+= -lpython2.5
+ 
+ 	# uncomment these lines (and comment those above) to use Python 3
+ #	CONFIG		+= link_pkgconfig
+Index: TeXworks.pro
+===================================================================
+--- TeXworks.pro	(Revision 814)
++++ TeXworks.pro	(Arbeitskopie)
+@@ -98,6 +98,9 @@
+ 	PKGCONFIG	+= hunspell
+ 	PKGCONFIG	+= poppler-qt4
+ 	PKGCONFIG	+= zlib
++	
++	# On Qt 4.3, QT_DBUS_LIB is not set automatically
++	QMAKE_CXXFLAGS += -DQT_DBUS_LIB
+ 
+ 	# Enclose the path in \\\" (which later gets expanded to \", which in turn
+ 	# gets expanded to " in the c++ code)

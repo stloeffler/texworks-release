@@ -38,6 +38,7 @@ rm -rf package-zip
 mkdir -p package-zip/share
 
 cp "build/TeXworks.exe" package-zip/
+cp "${MXE_DIR}/usr/i686-w64-mingw32/lib/lua52.dll" package-zip/
 cp COPYING package-zip/
 if [ -d manual ]; then
 	mkdir -p package-zip/texworks-help

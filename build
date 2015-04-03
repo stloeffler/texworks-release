@@ -1,4 +1,4 @@
-#!/usr/bin/python -B
+#!/usr/bin/python3 -B
 # -*- coding: utf-8 -*-
 
 # This is part of the texworks-release scripts
@@ -31,7 +31,7 @@ import subprocess
 import urllib
 import shutil
 import json
-import email.Utils
+import email.utils
 import datetime
 import textwrap
 
@@ -306,7 +306,7 @@ def formatChangelog(DISTRO, BUILDDIR):
 
 	# Print Footer
 	print("", file = changelog)
-	print(" -- %s  %s" % (config.PACKAGER, email.Utils.formatdate()), file = changelog)
+	print(" -- %s  %s" % (config.PACKAGER, email.utils.formatdate()), file = changelog)
 
 	changelog.close()
 	return 0

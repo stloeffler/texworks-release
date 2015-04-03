@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # This is part of the texworks-release scripts
 # Copyright (C) 2013-2014  Stefan Löffler

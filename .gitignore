@@ -3,4 +3,5 @@ googleCredentials.dat
 builds
 logs
 pkg
-texworks-read-only
+git-texworks
+git-manual

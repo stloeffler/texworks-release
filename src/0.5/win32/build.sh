@@ -23,6 +23,10 @@ TOPDIR=$(pwd)
 BUILDDIR=$1
 
 cd "${BUILDDIR}"
+
+# We need to run getGitRevInfo.sh manually (as CMake would try to run getGitRevInfo.bat)
+./getGitRevInfo.sh
+
 mkdir build && cd build
 cmake .. \
 	-DCMAKE_BUILD_TYPE="Release" \

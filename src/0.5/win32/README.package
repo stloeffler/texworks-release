@@ -30,8 +30,8 @@ the "Help > Email to mailing list" menu item which automatically includes some
 debug information), or file a bug report.
 
 Homepage:     http://www.tug.org/texworks/
-Development:  http://code.google.com/p/texworks/
-Bugs:         http://code.google.com/p/texworks/issues/list
+Development:  https://github.com/TeXworks/texworks/
+Bugs:         https://github.com/TeXworks/texworks/issues/
 Mailing list: http://tug.org/mailman/listinfo/texworks
 
 

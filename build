@@ -32,6 +32,8 @@ import urllib
 import shutil
 import json
 import email.Utils
+import datetime
+import textwrap
 
 class colors:
 	BOLD = '\033[01m'
@@ -53,7 +55,7 @@ except ImportError:
 	fout.write('MXE_DIR              = "" # /opt/mxe-stable\n')
 	fout.write('GOOGLE_CLIENT_ID     = "" # Your Google Drive client ID\n')
 	fout.write('GOOGLE_CLIENT_SECRET = "" # Your Google Drive client secret\n')
-	fout.write('UPDATE_FIRST         = True # Run `svn up` before starting building?\n')
+	fout.write('UPDATE_FIRST         = True # Run `git pull` before starting building?\n')
 	fout.write('OVERWRITE            = True # Overwrite build directories if they already exist?\n')
 	fout.write('FORCE                = True # Build even if the build target already exists?\n')
 	fout.write('UPLOAD               = True # Upload files when the build has finished?\n')
@@ -77,7 +79,8 @@ POPPLERDATAURL      = "http://poppler.freedesktop.org/" + POPPLERDATAFILENAME
 UBUNTU_DISTROS      = ["precise", "saucy", "trusty", "utopic"]
 #UBUNTU_DISTROS      = ["saucy", "trusty"]
 #UBUNTU_DISTROS      = ["trusty"]
-SVNROOT             = "texworks-read-only"
+GITROOT             = "git-texworks"
+MANUALROOT          = "git-manual"
 PKGROOT             = "pkg"
 BUILDROOT           = "builds"
 SCRIPTSROOT         = "src"
@@ -88,45 +91,54 @@ LOG                 = sys.stdout
 def getStableVersions():
 	global STABLE_VERSIONS
 	STABLE_VERSIONS = []
-	for d in sorted(os.listdir(SVNROOT + '/tags')):
+	for d in sorted(subprocess.check_output(["git", "tag"], cwd = GITROOT, universal_newlines = True).split()):
 		m = re.match('^release-([0-9.]+)$', d)
 		if m:
 			STABLE_VERSIONS.append(m.group(1))
 
-def svnCheckout():
-	subprocess.call(["svn", "checkout", "http://texworks.googlecode.com/svn/", SVNROOT])
+def gitClone(upstream, dest):
+	subprocess.call(["git", "clone", upstream, dest])
 
-def svnUpdate():
-	subprocess.call(["svn", "update", SVNROOT])
+def gitUpdate():
+	subprocess.call(["git", "pull"], cwd = GITROOT)
+	subprocess.call(["git", "pull"], cwd = MANUALROOT)
 
-def svnExport(src, dest):
-	return subprocess.call(["svn", "export", src, dest], stdout = LOG)
+def gitExport(src, dest, gitdir):
+	p1 = subprocess.Popen(["git", "archive", "--format=tar", src], cwd = gitdir, stdout = subprocess.PIPE)
+	p2 = subprocess.Popen(["tar", "-xf", "-"], stdin = p1.stdout, cwd = dest)
+	p1.stdout.close()
+	p2.communicate()
+	return p2.returncode
 
 def getSeries():
 	global SERIES
 	SERIES = TRUNK_SERIES
 	if len(argv) == 2:
 		if argv[1] in STABLE_VERSIONS or argv[1] == TRUNK_SERIES: SERIES = argv[1]
-		else: print(colors.WARN + "Unknown series '" + argv[1] + "'; building trunk" + colors.END)
+		else: print(colors.WARN + "Unknown series '" + argv[1] + "'; building master" + colors.END)
 
-def getSrcDir():
-	global SRCDIR
-	if SERIES in STABLE_VERSIONS: SRCDIR = SVNROOT + "/tags/release-" + SERIES
-	else: SRCDIR = SVNROOT + "/trunk"
+def getSrcTree():
+	global SRCTREE
+	if SERIES in STABLE_VERSIONS: SRCTREE = "release-" + SERIES
+	else: SRCTREE = "master"
 
-def getRevNo():
-	global REVNO
-
+def getCommitHash():
+	global COMMIT_HASH
 	if SERIES in STABLE_VERSIONS:
-		fin = open(SRCDIR + "/src/SvnRev.h")
-		m = re.search('SVN_REVISION\s+(\d+)', fin.read())
-		fin.close()
-		if m:
-			REVNO = int(m.group(1))
-			return
-	m = re.search('Revision:\s+(\d+)', subprocess.check_output(['svn', 'info', SRCDIR]))
-	if m: REVNO = int(m.group(1))
-	else: REVNO = -1
+		tree = "release-" + SERIES
+	else:
+		tree = "master"
+	COMMIT_HASH = subprocess.check_output(['git', 'show', '-s', '--pretty=%h', tree + "^{commit}"], cwd = GITROOT, universal_newlines = True).strip("\n")
+
+def getCommitDate():
+	global COMMIT_DATE, COMMIT_DATE_STR
+	if SERIES in STABLE_VERSIONS:
+		tree = "release-" + SERIES
+	else:
+		tree = "master"
+	date = subprocess.check_output(['git', 'show', '-s', '--pretty=%ci', tree + "^{commit}"], cwd = GITROOT, universal_newlines = True).strip("\n")
+	COMMIT_DATE = datetime.datetime.strptime(date.strip(), '%Y-%m-%d %H:%M:%S %z')
+	COMMIT_DATE_STR = COMMIT_DATE.astimezone(datetime.timezone.utc).strftime("%Y%m%d")
 	
 def getPrerequisites():
 	if not os.path.isfile(PKGROOT + "/" + POPPLERDATAFILENAME):
@@ -156,17 +168,22 @@ def ensureDirExists(folder):
 		print(colors.OK + "OK" + colors.END)
 
 def ensureDirsExist():
-	if not os.path.exists(SVNROOT):
-		printTask("Checking out TeXworks sources ", "")
-		svnCheckout()
+	if not os.path.exists(GITROOT):
+		printTask("Cloning TeXworks sources ", "")
+		gitClone("https://github.com/TeXworks/texworks.git", GITROOT)
+		print(colors.OK + "OK" + colors.END)
+	if not os.path.exists(MANUALROOT):
+		printTask("Cloning TeXworks manual ", "")
+		gitClone("https://github.com/TeXworks/manual.git", MANUALROOT)
 		print(colors.OK + "OK" + colors.END)
 	ensureDirExists(LOGROOT)
 	ensureDirExists(PKGROOT)
 
 def buildWin32():
 	SCRIPTSDIR = SCRIPTSROOT + "/" + SERIES + "/win32"
-	BUILDDIR = BUILDROOT + "/win32/TeXworks-w32-%s-r%i" % (SERIES, REVNO)
-	ZIPTARGET = BUILDROOT + "/win32/TeXworks-w32-%s-r%i.zip" % (SERIES, REVNO)
+	BUILDDIR = BUILDROOT + "/win32/TeXworks-w32-%s-%s-git_%s" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH)
+	MANUALDIR = BUILDDIR + "/manual-export"
+	ZIPTARGET = BUILDROOT + "/win32/TeXworks-w32-%s-%s-git_%s.zip" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH)
 	PACKAGES = []
 	os.environ["MXE_DIR"] = config.MXE_DIR
 
@@ -183,8 +200,8 @@ def buildWin32():
 	printTask("exporting sources")
 	if config.OVERWRITE and os.path.exists(BUILDDIR): shutil.rmtree(BUILDDIR)
 	if not os.path.exists(BUILDDIR):
-		if not os.path.exists(os.path.dirname(BUILDDIR)): os.makedirs(os.path.dirname(BUILDDIR))
-		if svnExport(SRCDIR, BUILDDIR) != 0:
+		os.makedirs(BUILDDIR)
+		if gitExport(SRCTREE, BUILDDIR, GITROOT) != 0:
 			print(colors.ERROR + "error" + colors.END)
 			return
 		else:
@@ -200,13 +217,24 @@ def buildWin32():
 		print(colors.OK + "OK" + colors.END)
 
 	if SERIES != TRUNK_SERIES:
+		printTask("exporting manual")
+		if config.OVERWRITE and os.path.exists(MANUALDIR): shutil.rmtree(MANUALDIR)
+		if not os.path.exists(MANUALDIR):
+			os.makedirs(MANUALDIR)
+			if gitExport("master", MANUALDIR, MANUALROOT) != 0:
+				print(colors.ERROR + "error" + colors.END)
+				return
+			else:
+				print(colors.OK + "OK" + colors.END)
+		else:
+			print("noop")
 		printTask("building manual")
-		if subprocess.call([SCRIPTSROOT + "/buildManual.sh", SVNROOT + "/manual"], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+		if subprocess.call([SCRIPTSROOT + "/buildManual.sh", MANUALDIR], stdout = LOG, stderr = subprocess.STDOUT) != 0:
 			print(colors.ERROR + "error" + colors.END)
 		else:
 			print(colors.OK + "OK" + colors.END)
 			printTask("copying manual")
-			if subprocess.call([SCRIPTSROOT + "/copyManual.sh", SVNROOT + "/manual", BUILDDIR], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+			if subprocess.call([SCRIPTSROOT + "/copyManual.sh", MANUALDIR, BUILDDIR], stdout = LOG, stderr = subprocess.STDOUT) != 0:
 				print(colors.ERROR + "error" + colors.END)
 			else:
 				print(colors.OK + "OK" + colors.END)
@@ -240,12 +268,12 @@ def formatChangelog(DISTRO, BUILDDIR):
 	changelog = open(BUILDDIR + "/Changelog", 'w')
 
 	# Print Header
-	print("texworks (%s~svn%i~%s%i) %s; urgency=low" % (SERIES, REVNO, DISTRO, BUILDNUM, DISTRO), file = changelog)
+	print("texworks (%s~t%s~git~%s~%s%i) %s; urgency=low" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH, DISTRO, BUILDNUM, DISTRO), file = changelog)
 	print("", file = changelog)
 
 
 	if SERIES == TRUNK_SERIES:
-		# For trunk releases, derive the changelog from the svn log
+		# For trunk releases, derive the changelog from the git log
 		try:
 			lastRevs = loadJson(BUILDROOT + "/ubuntu/lastRevs.json")
 		except IOError:
@@ -256,13 +284,12 @@ def formatChangelog(DISTRO, BUILDDIR):
 		if lastRev is None:
 			print("    * Initial release", file = changelog)
 		else:
-			fullLog = subprocess.check_output(['svn', 'log', SRCDIR, "-r", "%i:HEAD" % (lastRev + 1)])
-			logEntries = fullLog.split("------------------------------------------------------------------------")
+			logEntries = subprocess.check_output(['git', 'log', "--pretty=%s", "%s..HEAD" % lastRev], cwd = GITROOT, universal_newlines = True).split("\n")
 			for entry in logEntries:
-				lines = entry.split("\n")
-				if len(lines) < 4: continue
-				# line 0 is empty, line 1 is status info, line 2 is empty, line 3 is brief description
-				print("    * %s" % lines[3].strip(), file = changelog)
+				if len(entry.strip()) == 0:
+					continue
+				print(textwrap.fill(entry.strip(), 80, initial_indent = "    * ", subsequent_indent = "      "), file = changelog)
+#				print("    * %s" % entry.strip(), file = changelog)
 	else:
 		# For stable releases, derive the changelog from the NEWS file
 		news = open(BUILDDIR + '/NEWS')
@@ -297,8 +324,8 @@ def buildUbuntu():
 	else: PPA = "ppa:texworks/stable"
 	
 	for DISTRO in UBUNTU_DISTROS:
-		BUILDDIR = BUILDROOT + "/ubuntu/%s/texworks-%s~svn%i~%s%i" % (DISTRO, SERIES, REVNO, DISTRO, BUILDNUM)
-		DEBTARGET = BUILDROOT + "/ubuntu/%s/texworks_%s~svn%i~%s%i_source.changes" % (DISTRO, SERIES, REVNO, DISTRO, BUILDNUM)
+		BUILDDIR = BUILDROOT + "/ubuntu/%s/texworks-%s~t%s~git~%s~%s%i" % (DISTRO, SERIES, COMMIT_DATE_STR, COMMIT_HASH, DISTRO, BUILDNUM)
+		DEBTARGET = BUILDROOT + "/ubuntu/%s/texworks_%s~t%s~git~%s~%s%i_source.changes" % (DISTRO, SERIES, COMMIT_DATE_STR, COMMIT_HASH, DISTRO, BUILDNUM)
 		print(colors.TASK + "   " + DISTRO + " build" + colors.END)
 
 		if not config.FORCE and os.path.isfile(DEBTARGET):
@@ -308,8 +335,8 @@ def buildUbuntu():
 		printTask("   exporting sources")
 		if config.OVERWRITE and os.path.exists(BUILDDIR): shutil.rmtree(BUILDDIR)
 		if not os.path.exists(BUILDDIR):
-			if not os.path.exists(os.path.dirname(BUILDDIR)): os.makedirs(os.path.dirname(BUILDDIR))
-			if svnExport(SRCDIR, BUILDDIR) != 0:
+			if not os.path.exists(BUILDDIR): os.makedirs(BUILDDIR)
+			if gitExport(SRCTREE, BUILDDIR, GITROOT) != 0:
 				print(colors.ERROR + "error" + colors.END)
 				return
 			else:
@@ -342,23 +369,26 @@ def buildUbuntu():
 				print(colors.OK + "OK" + colors.END)
 	
 			if SERIES == TRUNK_SERIES:
-				lastRevs[DISTRO] = REVNO
+				lastRevs[DISTRO] = COMMIT_HASH
 				saveJson(BUILDROOT + "/ubuntu/lastRevs.json", lastRevs)
 		
 
 
 if __name__ == "__main__":
 	ensureDirsExist()
-	if config.UPDATE_FIRST: svnUpdate()
+	if config.UPDATE_FIRST: gitUpdate()
 
 	getStableVersions()
 	getSeries()
-	getSrcDir()
-	getRevNo()
+	getSrcTree()
+	getCommitHash()
+	getCommitDate()
 	
-	LOG = open(LOGROOT + "/build-%s-r%i.log" % (SERIES, REVNO), 'w')
+	LOG = open(LOGROOT + "/build-%s-%s-%s.log" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH), 'w')
 
 	getPrerequisites()
+
+	print("Building %s %s [%s]" % (SERIES, COMMIT_HASH, COMMIT_DATE_STR))
 
 	# FIXME: Call function dynamically via globals()[function_name]()
 	if "ubuntu" in PLATFORMS: buildUbuntu()

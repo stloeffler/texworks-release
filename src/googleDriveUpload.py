@@ -20,6 +20,7 @@
 # For links to further information, or to contact the authors,
 # see <https://github.com/stloeffler/texworks-release>.
 
+from __future__ import print_function
 import httplib2
 import sys
 import os.path
@@ -91,7 +92,7 @@ def retrieve_all_files(service, query = None):
       if not page_token:
         break
     except errors.HttpError, error:
-      print 'An error occurred: %s' % error
+      print('An error occurred: %s' % error)
       break
   return result
 
@@ -144,8 +145,11 @@ def archiveOldFiles(folderId):
 		for f in files:
 			if f['mimeType'] == 'application/vnd.google-apps.folder': continue
 			print("   moving '%s'" % f['title'])
-			drive_service.parents().insert(fileId = f['id'], body = {'id': archiveId}).execute()
-			drive_service.parents().delete(fileId = f['id'], parentId = folderId).execute()
+			try:
+				drive_service.parents().insert(fileId = f['id'], body = {'id': archiveId}).execute()
+				drive_service.parents().delete(fileId = f['id'], parentId = folderId).execute()
+			except errors.HttpError, error:
+				print("ERROR archiving %s: %s" % (f['title'], error), file = sys.stderr)
 
 def uploadFile(filename, folderId):
 	global drive_service

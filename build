@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # This is part of the texworks-release scripts
-# Copyright (C) 2013-2014  Stefan Löffler
+# Copyright (C) 2013-2015  Stefan Löffler
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,6 +21,10 @@
 # see <https://github.com/stloeffler/texworks-release>.
 
 # The -B flag should prevent the generation of .pyc
+
+# FIXME: check for used commands, including git
+# cmake, make
+# [manual] tidy, dvips, convert, lualatex, htlatex, makeindex
 
 from __future__ import print_function
 from sys import argv

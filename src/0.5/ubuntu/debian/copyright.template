@@ -9,7 +9,7 @@ Upstream Authors:
 
 Copyright:
 
-    Copyright (C) 2007-2014  Jonathan Kew, Stefan Löffler, Charlie Sharpsteen
+    Copyright (C) 2007-2015  Jonathan Kew, Stefan Löffler, Charlie Sharpsteen
 
 License:
 
@@ -19,6 +19,6 @@ License:
     On Debian systems, the complete text of the GNU General Public
     License v2 can be found in the file `/usr/share/common-licenses/GPL-2'.
 
-The Debian packaging is copyright 2014, <AUTHOR> and
+The Debian packaging is copyright 2015, <AUTHOR> and
 is licensed under the GPLv2, see `/usr/share/common-licenses/GPL-2'.
 

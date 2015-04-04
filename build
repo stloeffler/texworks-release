@@ -72,7 +72,7 @@ PLATFORMS           = ["win32", "ubuntu"]
 # FIXME: Inno Setup
 INNOCC              = "C:\\Program Files\\Inno Setup 5\\ISCC.exe"
 
-POPPLERDATAVERSION  = "0.4.6"
+POPPLERDATAVERSION  = "0.4.7"
 POPPLERDATAFILENAME = "poppler-data-%s.tar.gz" % POPPLERDATAVERSION
 POPPLERDATAURL      = "http://poppler.freedesktop.org/" + POPPLERDATAFILENAME
 

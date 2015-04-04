@@ -46,4 +46,8 @@ tar -x -C "release/share/" -f "${TOPDIR}/pkg/${POPPLERDATAFILENAME}" && mv "rele
 cp "${SCRIPTDIR}/README.package" release/README.txt
 
 wine "$COMPILER" "win32/texworks-setup-script.iss"
+for FILE in win32/Output/TeXworks-setup-v*.exe; do
+	echo "$FILE > ${TOPDIR}/${TARGET}"
+	mv "$FILE" "${TOPDIR}/${TARGET}"
+done
 

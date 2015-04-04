@@ -69,8 +69,8 @@ PLATFORMS           = ["win32", "ubuntu"]
 #PLATFORMS           = ["ubuntu"]
 #PLATFORMS           = ["win32"]
 
-# FIXME
-#INNOCC             := wine "C:\\Programme\\Inno Setup 5\\iscc.exe" /O.
+# FIXME: Inno Setup
+INNOCC              = "C:\\Program Files\\Inno Setup 5\\ISCC.exe"
 
 POPPLERDATAVERSION  = "0.4.6"
 POPPLERDATAFILENAME = "poppler-data-%s.tar.gz" % POPPLERDATAVERSION
@@ -184,13 +184,17 @@ def buildWin32():
 	BUILDDIR = BUILDROOT + "/win32/TeXworks-w32-%s-%s-git_%s" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH)
 	MANUALDIR = BUILDDIR + "/manual-export"
 	ZIPTARGET = BUILDROOT + "/win32/TeXworks-w32-%s-%s-git_%s.zip" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH)
+	INSTALLERTARGET = BUILDROOT + "/win32/TeXworks-setup-%s-%s-git_%s.exe" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH)
 	PACKAGES = []
 	os.environ["MXE_DIR"] = config.MXE_DIR
 
 	print(colors.TASK + "Win32 build" + colors.END)
 
-	# FIXME: Other targets (installer, ...)
-	if not config.FORCE and os.path.isfile(ZIPTARGET):
+	TARGETS = [ZIPTARGET]
+	if SERIES != TRUNK_SERIES:
+		TARGETS.append(INSTALLERTARGET)
+
+	if not config.FORCE and all(os.path.isfile(f) for f in TARGETS):
 		print("   already up to date")
 		return
 
@@ -250,8 +254,13 @@ def buildWin32():
 
 	if SERIES != TRUNK_SERIES:
 		printTask("packaging (installer)")
-		# FIXME
-		print(colors.ERROR + "!!!!!! FIXME !!!!!!" + colors.END)
+		# unpack everything to BUILDDIR/release
+		if subprocess.call([SCRIPTSDIR + "/packageInstaller.sh", BUILDDIR, INSTALLERTARGET, POPPLERDATAFILENAME, INNOCC], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+			print(colors.ERROR + "error" + colors.END)
+			return
+		else:
+			PACKAGES.append(INSTALLERTARGET)
+			print(colors.OK + "OK" + colors.END)
 	
 	if config.UPLOAD:
 		printTask("uploading")

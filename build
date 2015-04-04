@@ -65,9 +65,10 @@ except ImportError:
 BUILDNUM            = 1
 TRUNK_SERIES        = "0.5"
 
-PLATFORMS           = ["win32", "ubuntu"]
+PLATFORMS           = ["win32", "ubuntu", "sources"]
 #PLATFORMS           = ["ubuntu"]
 #PLATFORMS           = ["win32"]
+#PLATFORMS           = ["sources"]
 
 # FIXME: Inno Setup
 INNOCC              = "C:\\Program Files\\Inno Setup 5\\ISCC.exe"
@@ -381,7 +382,47 @@ def buildUbuntu():
 				lastRevs[DISTRO] = COMMIT_HASH
 				saveJson(BUILDROOT + "/ubuntu/lastRevs.json", lastRevs)
 		
+def buildSources():
+	BUILDDIR = BUILDROOT + "/src/texworks-%s-%s-git_%s" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH)
+	TARGZTARGET = BUILDROOT + "/src/texworks-%s-%s-git_%s.tar.gz" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH)
+	PACKAGES = []
+	if SERIES == TRUNK_SERIES:
+		return
 
+	print("=================== Sources ===================", file = LOG)
+	LOG.flush()
+
+	print(colors.TASK + "Sources" + colors.END)
+
+	printTask("exporting sources")
+	if config.OVERWRITE and os.path.exists(BUILDDIR): shutil.rmtree(BUILDDIR)
+	if not os.path.exists(BUILDDIR):
+		os.makedirs(BUILDDIR)
+		if gitExport(SRCTREE, BUILDDIR, GITROOT) != 0:
+			print(colors.ERROR + "error" + colors.END)
+			return
+		else:
+			print(colors.OK + "OK" + colors.END)
+	else:
+		print("noop")
+
+	printTask("packaging (tar.gz)")
+	if subprocess.call(["tar", "--gzip", "--create", "--directory", os.path.dirname(BUILDDIR), "--file", TARGZTARGET, os.path.basename(BUILDDIR)], stdout = LOG, stderr = subprocess.STDOUT) != 0:
+		print(colors.ERROR + "error" + colors.END)
+		return
+	else:
+		PACKAGES.append(TARGZTARGET)
+		print(colors.OK + "OK" + colors.END)
+
+	if config.UPLOAD:
+		printTask("uploading")
+		if len(PACKAGES) == 0:
+			print("noop")
+		elif subprocess.call([SCRIPTSROOT + "/googleDriveUpload.py", "src", "stable"] + PACKAGES, stdout = LOG) != 0:
+			print(colors.ERROR + "error" + colors.END)
+			return
+		else:
+			print(colors.OK + "OK" + colors.END)
 
 if __name__ == "__main__":
 	ensureDirsExist()
@@ -401,7 +442,9 @@ if __name__ == "__main__":
 
 	# FIXME: Call function dynamically via globals()[function_name]()
 	if "ubuntu" in PLATFORMS: buildUbuntu()
+	if "sources" in PLATFORMS: buildSources()
 	if "win32" in PLATFORMS: buildWin32()
+	# FIXME: manual
 
 	LOG.close()
 	#os.environ

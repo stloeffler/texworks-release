@@ -5,3 +5,4 @@ logs
 pkg
 git-texworks
 git-manual
+*.pyc

@@ -105,7 +105,9 @@ def gitClone(upstream, dest):
 	subprocess.call(["git", "clone", upstream, dest])
 
 def gitUpdate():
-	subprocess.call(["git", "pull"], cwd = GITROOT)
+	# NB: There is no point in `pull`ing to GITROOT here as we don't know which
+	#     branch we need. Instead, we run `pull` in getSrcTree()
+	subprocess.call(["git", "fetch"], cwd = GITROOT)
 	subprocess.call(["git", "pull"], cwd = MANUALROOT)
 
 def gitExport(src, dest, gitdir):
@@ -126,6 +128,14 @@ def getSrcTree():
 	global SRCTREE
 	if SERIES in STABLE_VERSIONS: SRCTREE = "release-" + SERIES
 	else: SRCTREE = "master"
+
+	# switch to requested branch if necessary
+	git_branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd = GITROOT, universal_newlines = True).strip()
+	if git_branch != SRCTREE:
+		subprocess.call(["git", "checkout", SRCTREE], cwd = GITROOT)
+	# pull if necessary
+	if subprocess.check_output(["git", "rev-parse", "@"], cwd = GITROOT) != subprocess.check_output(["git", "rev-parse", "@{u}"], cwd = GITROOT):
+		subprocess.call(["git", "pull"], cwd = GITROOT)
 
 def getCommitHash():
 	global COMMIT_HASH

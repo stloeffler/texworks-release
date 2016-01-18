@@ -81,9 +81,8 @@ POPPLERDATAVERSION  = "0.4.7"
 POPPLERDATAFILENAME = "poppler-data-%s.tar.gz" % POPPLERDATAVERSION
 POPPLERDATAURL      = "http://poppler.freedesktop.org/" + POPPLERDATAFILENAME
 
-UBUNTU_DISTROS      = ["precise", "trusty", "utopic", "vivid"]
-#UBUNTU_DISTROS      = ["saucy", "trusty"]
-#UBUNTU_DISTROS      = ["utopic"]
+UBUNTU_DISTROS      = ["precise", "trusty", "vivid", "wily", "xenial"]
+#UBUNTU_DISTROS      = ["xenial"]
 GITROOT             = "git-texworks"
 MANUALROOT          = "git-manual"
 PKGROOT             = "pkg"

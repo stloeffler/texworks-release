@@ -32,8 +32,8 @@ cmake .. \
 	-DCMAKE_BUILD_TYPE="Release" \
 	-DTW_BUILD_ID='official' \
 	-DDESIRED_QT_VERSION=5 \
-	-DCMAKE_TOOLCHAIN_FILE="${MXE_DIR}/usr/i686-w64-mingw32/share/cmake/mxe-conf.cmake" \
-	-DCMAKE_PREFIX_PATH="${MXE_DIR}/usr/i686-w64-mingw32/qt5/lib/cmake" \
-	-DTEXWORKS_ADDITIONAL_LIBS="imm32;opengl32;lcms;jpeg;tiff;png;lzma;freetype;bz2;pcre16;sicuuc;sicudt;wsock32;winmm"
+	-DCMAKE_TOOLCHAIN_FILE="${MXE_DIR}/usr/${MXE_TARGET}/share/cmake/mxe-conf.cmake" \
+	-DCMAKE_PREFIX_PATH="${MXE_DIR}/usr/${MXE_TARGET}/qt5/lib/cmake" \
+	-DTEXWORKS_ADDITIONAL_LIBS="imm32;opengl32;lcms;jpeg;tiff;png;lzma;freetype;harfbuzz;glib-2.0;intl;iconv;ws2_32;bz2;pcre16;sicuuc;sicudt;wsock32;winmm;shlwapi"
 
-make && "${MXE_DIR}/usr/bin/i686-w64-mingw32-strip" *.exe
+make && "${MXE_DIR}/usr/bin/${MXE_TARGET}-strip" *.exe

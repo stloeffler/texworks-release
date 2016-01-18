@@ -57,6 +57,7 @@ except ImportError:
 	fout.write("# -*- coding: utf-8 -*-\n\n")
 	fout.write('PACKAGER             = "" # Your Name <your.email@domain.com>\n')
 	fout.write('MXE_DIR              = "" # /opt/mxe-stable\n')
+	fout.write('MXE_TARGET           = "" # i686-w64-mingw32.static\n')
 	fout.write('GOOGLE_CLIENT_ID     = "" # Your Google Drive client ID\n')
 	fout.write('GOOGLE_CLIENT_SECRET = "" # Your Google Drive client secret\n')
 	fout.write('UPDATE_FIRST         = True # Run `git pull` before starting building?\n')
@@ -191,6 +192,7 @@ def buildWin32():
 	INSTALLERTARGET = BUILDROOT + "/win32/TeXworks-setup-%s-%s-git_%s.exe" % (SERIES, COMMIT_DATE_STR, COMMIT_HASH)
 	PACKAGES = []
 	os.environ["MXE_DIR"] = config.MXE_DIR
+	os.environ["MXE_TARGET"] = config.MXE_TARGET
 
 	print(colors.TASK + "Win32 build" + colors.END)
 
